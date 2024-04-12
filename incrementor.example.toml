@@ -1,0 +1,7 @@
+current_version = '0.1.0'
+tag = true
+commit = true
+
+[files.VERSION]
+search = '{current_version}'
+replace = '{new_version}'

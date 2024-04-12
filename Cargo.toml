@@ -6,6 +6,9 @@ authors = ["Robert den Harink"]
 publish = true
 description = "A simple version bumping tool"
 keywords = ["cli", "bunmpversion", "increment-version", "incrementor"]
+license = "MIT"
+license-file = "LICENSE"
+repository = "https://github.com/fulljoin-tech/incrementor"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

@@ -1,6 +1,6 @@
-use std::path::PathBuf;
 #[cfg(test)]
 use std::path::Path;
+use std::path::PathBuf;
 
 use git2::build::CheckoutBuilder;
 use git2::{IndexAddOption, Repository, StatusOptions};

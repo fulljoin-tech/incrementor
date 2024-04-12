@@ -2,6 +2,10 @@
 name = "incrementor"
 version = "0.1.0"
 edition = "2021"
+authors = ["Robert den Harink"]
+publish = true
+description = "A simple version bumping tool"
+keywords = ["cli", "bunmpversion", "increment-version", "incrementor"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

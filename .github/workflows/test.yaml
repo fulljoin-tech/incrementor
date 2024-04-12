@@ -30,5 +30,10 @@ jobs:
           cargo fmt --all -- --check
           cargo clippy -- -D warnings
 
+      - name: Prepare tests
+        run : |
+          git config --global user.email "test@fulljoin.nl"
+          git config --global user.name "Github Actions tester"
+
       - name: Test
         run: cargo test

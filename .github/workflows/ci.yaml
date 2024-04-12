@@ -1,0 +1,36 @@
+name: CI
+
+env:
+  CARGO_TERM_COLOR: always
+
+on:
+  workflow_dispatch:
+    push:
+      tags:
+        - '^([0-9]+)\.([0-9]+)\.([0-9]+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+)?'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        # selecting a toolchain either by action or manual `rustup` calls should happen
+        # before the plugin, as the cache uses the current rustc version as its cache key
+      - name: Install Rust
+        run: rustup toolchain install stable --profile minimal
+
+      - name: Setup Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build --release
+
+      - name: Publish
+        env:
+          CRATES_TOKEN: ${{ secrets.CRATES_TOKEN }}
+        run: |
+          cargo publish --token ${CRATES_TOKEN}

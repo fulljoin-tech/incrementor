@@ -1,9 +1,9 @@
+use std::io;
 #[cfg(test)]
 use std::path::Path;
 use std::path::PathBuf;
+use std::process::Command;
 
-use git2::build::CheckoutBuilder;
-use git2::{IndexAddOption, Repository, StatusOptions};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -11,27 +11,31 @@ pub enum GitOperationError {
     #[error("Git working directory is dirty")]
     Dirty,
     #[error("Unknown git error: {0}")]
-    Unknown(#[from] git2::Error),
+    Unknown(#[from] io::Error),
 }
 
 /// Minimal git functionality used to tag, commit and check dirty repo
 pub(crate) struct Git {
     allow_dirty: bool,
-    repo: Repository,
+    path: Option<PathBuf>,
 }
 
 impl Git {
     /// Returns a new instance
     pub fn new(allow_dirty: bool) -> Result<Self, GitOperationError> {
-        let repo = Repository::discover(".")?;
-        Ok(Git { repo, allow_dirty })
+        Ok(Git {
+            allow_dirty,
+            path: None,
+        })
     }
 
     /// New at path
     #[cfg(test)]
     pub fn new_with_path(path: &Path, allow_dirty: bool) -> Result<Self, GitOperationError> {
-        let repo = Repository::discover(path)?;
-        Ok(Git { repo, allow_dirty })
+        Ok(Git {
+            allow_dirty,
+            path: Some(path.to_path_buf()),
+        })
     }
 
     /// Returns true if dirty
@@ -42,52 +46,28 @@ impl Git {
     /// Tags the latest commit on the current branch
     pub fn tag(&self, tag: &str, message: &str) -> Result<(), GitOperationError> {
         self.is_dirty_check()?;
-
-        // Tag the latest commit of the current branch
-        let obj = self
-            .repo
-            .head()?
-            .resolve()?
-            .peel(git2::ObjectType::Commit)?;
-        self.repo
-            .tag(tag, &obj, &self.repo.signature()?, message, false)?;
+        self.create_git_cmd()
+            .args(vec!["tag", "-a", tag, "-m", message])
+            .output()?;
         Ok(())
     }
 
     /// Commit all with message
     pub fn commit(&self, message: &str) -> Result<(), GitOperationError> {
-        let mut index = self.repo.index()?;
-        // TODO: here we add all the changes, maybe only add the files changed by the incrementor command?
-        index.add_all(["*"].iter(), IndexAddOption::DEFAULT, None)?;
-        let oid = index.write_tree()?;
-
-        let tree = self.repo.find_tree(oid)?;
-        let sig = self.repo.signature()?;
-        let parent_commit = self.find_last_commit()?;
-        self.repo
-            .commit(Some("HEAD"), &sig, &sig, message, &tree, &[&parent_commit])?;
+        let _res = self
+            .create_git_cmd()
+            .args(vec!["commit", "-am", message])
+            .output()?;
         Ok(())
     }
 
-    /// Find the last commit of the current branch
-    fn find_last_commit(&self) -> Result<git2::Commit, git2::Error> {
-        let obj = self
-            .repo
-            .head()?
-            .resolve()?
-            .peel(git2::ObjectType::Commit)?;
-        obj.into_commit()
-            .map_err(|_| git2::Error::from_str("Couldn't find commit"))
-    }
-
-    /// Rollback any changes made
-    pub fn rollback(&self, files: Vec<&PathBuf>) -> Result<(), GitOperationError> {
-        let mut b = CheckoutBuilder::new();
-        for path in files {
-            b.path(path);
+    /// Create the git command with default arguments.
+    fn create_git_cmd(&self) -> Command {
+        let mut cmd = Command::new("git");
+        if let Some(path) = &self.path {
+            cmd.args(["-C", path.to_str().unwrap()]);
         }
-
-        Ok(self.repo.checkout_head(Some(&mut b.force()))?)
+        cmd
     }
 
     /// Returns 'true' when the git working directory is dirty (has changes)
@@ -95,11 +75,16 @@ impl Git {
         if self.allow_dirty {
             return Ok(());
         }
-        let mut opts = StatusOptions::default();
-        if self.repo.statuses(Some(&mut opts))?.is_empty() {
-            Ok(())
+        let output = self
+            .create_git_cmd()
+            .args(["status", "--porcelain"])
+            .output()?;
+
+        // Check the command's standard output; if it's empty, there are no changes
+        if output.stdout.is_empty() {
+            Ok(()) // No changes, working directory is clean
         } else {
-            Err(GitOperationError::Dirty)
+            Err(GitOperationError::Dirty) // Changes detected, working directory is dirty
         }
     }
 }
@@ -169,12 +154,17 @@ mod tests {
             &[],
         )?;
 
-        let git = Git::new_with_path(repo_path, false)?;
+        let mut index = repo.index()?;
+        create_file_in_repo(repo_path, "TEST", "test")?;
+        index.add_path(Path::new("TEST"))?;
+        index.write()?;
+
+        let git = Git::new_with_path(repo_path, true)?;
         git.commit("test commit")?;
 
         // Verify the commit exist
         let commit = repo.head()?.peel_to_commit()?;
-        assert_eq!(commit.message(), Some("test commit"));
+        assert_eq!(commit.message(), Some("test commit\n"));
 
         git.tag("0.2.0", "v0.2.0")?;
         let tags = repo.tag_names(None)?;

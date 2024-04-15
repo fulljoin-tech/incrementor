@@ -45,12 +45,6 @@ impl Default for Config {
     }
 }
 
-impl Config {
-    pub fn get_file_paths(&self) -> Vec<&PathBuf> {
-        self.files.iter().map(|(path, _)| path).collect()
-    }
-}
-
 pub static WORKDIR_CONFIG_PATH: &str = "./incrementor.toml";
 
 impl Config {

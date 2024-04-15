@@ -245,9 +245,6 @@ fn main() -> Result<()> {
                 }
             }
             Err(err) => {
-                if !args.dry_run {
-                    git.rollback(config.get_file_paths())?;
-                }
                 return Err(err);
             }
         }

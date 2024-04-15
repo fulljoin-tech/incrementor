@@ -66,6 +66,8 @@ impl Git {
         let parent_commit = self.find_last_commit()?;
         self.repo
             .commit(Some("HEAD"), &sig, &sig, message, &tree, &[&parent_commit])?;
+        // Make sure the tree is written to disk
+        tree.write()?;
         Ok(())
     }
 
